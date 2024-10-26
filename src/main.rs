@@ -26,15 +26,42 @@ use regex::Regex;
 
 fn main() {
     let re = Regex::new(r"^([a-z-]*)([0-9]*)\[([^\]]*)]$").unwrap();
-    let file = File::open("data/test_input.txt").expect("Error opening input file.");
+    let file = File::open("data/input.txt").expect("Error opening input file.");
     let reader = BufReader::new(file);
+    let mut sector_id_sum: u32 = 0;
     for line in reader.lines().map(|l| l.unwrap()) {
         let (_, [encrypted_name, sector_id, checksum]) = re.captures(&line).unwrap().extract();
         let calculated_checksum = get_checksum(encrypted_name);
-        println!("{} {} {} {}", &line, encrypted_name, sector_id, checksum);
+        // println!("{} {} {} {} {}", &line, encrypted_name, sector_id, checksum, calculated_checksum);
+        if calculated_checksum == checksum {
+            let sector_id = sector_id.parse::<u16>().unwrap();
+            sector_id_sum += sector_id as u32;
+            let decrypted_room_name = decrypt_room_name(encrypted_name, sector_id);
+            if decrypted_room_name.contains("north") {
+                println!("{} {}", decrypted_room_name, sector_id);
+            }
+        }
     }
 
+    println!("The sum of the sector IDs of the real rooms is {}.", sector_id_sum);
+
     println!("Done");
+}
+
+fn decrypt_room_name(encrypted_name: &str, sector_id: u16) -> String {
+    let mut room_name = String::new();
+    for c in encrypted_name.chars() {
+        if c == '-' {
+            room_name.push(' ');
+        } else {
+            room_name.push(rotate_character(c, sector_id));
+        }
+    }
+    room_name
+}
+
+fn rotate_character(c: char, n: u16) -> char {
+    (((c as u16 - 'a' as u16 + n) % 26) as u8 + 'a' as u8) as char
 }
 
 fn get_checksum(encrypted_name: &str) -> String {
@@ -44,6 +71,12 @@ fn get_checksum(encrypted_name: &str) -> String {
             char_count.entry(char).and_modify(|v| *v += 1).or_insert(1);
         }
     }
-    println!("{:?}", char_count);
-    " ".to_owned()
+    let mut for_sorting = char_count.iter().map(|(c, v)| format!("{:02}{:02}{}", v, 'z' as u8 - *c as u8, c)).collect::<Vec<String>>();
+    for_sorting.sort();
+    for_sorting.reverse();
+    let mut checksum = String::new();
+    for value in for_sorting[..5].iter() {
+      checksum.push(value.chars().skip(4).next().unwrap());
+    }
+    checksum
 }
